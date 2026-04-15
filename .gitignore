@@ -1,0 +1,45 @@
+# ===== NEURAL WEIGHTS (DO NOT PUSH) =====
+*.pt
+*.pth
+*.bin
+*.weights
+*.onnx
+*.torchscript
+
+# ===== TRAINING RUNS =====
+runs/
+models/
+
+# ===== FORENSIC DATASETS & EVIDENCE =====
+data/
+uploads/
+processed_evidence/
+reports/
+
+# ===== PYTHON ENVIRONMENT =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# ===== IDE & OS =====
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# ===== SECRETS =====
+.env
+*.secret
+*.PAT
+
+# ===== LOGS =====
+*.log
+*.csv
