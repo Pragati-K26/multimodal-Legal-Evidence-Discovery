@@ -9,7 +9,7 @@ def train_forensic_yolo11():
     
     # 2. Load the latest YOLOv11 Small Backbone (Full Audit)
     # YOLOv11s provides the best balance for full-dataset forensic scanning
-    model = YOLO("yolo11s.pt")
+    model = YOLO("yolo11n.pt")
     
     # 3. Training Path Configuration
     DATA_YAML = r"D:\deep learning\Multimodal-Legal-Discovery\Legal_Evidence_Discovery\data\crime_scene_yolov8\data.yaml"

@@ -9,7 +9,7 @@ def train_forensic_rtdetr():
     
     # 2. Load Transformer Backbone (Large for Maximum Recall)
     # We use rtdetr-l.pt as the gold-standard for Transformer detection
-    model = RTDETR("rtdetr-l.pt")
+    model = RTDETR("yolov8m.pt")
     
     # 3. Training Path Configuration
     DATA_YAML = r"D:\deep learning\Multimodal-Legal-Discovery\Legal_Evidence_Discovery\data\crime_scene_yolov8\data.yaml"
@@ -23,7 +23,7 @@ def train_forensic_rtdetr():
             patience=50,    
             imgsz=1024,      
             batch=1,         
-            name='rtdetr_forensic_audit',
+            name='yolo v8m',
             device=device,
             exist_ok=True,
             workers=0,       # Windows Stability Mode (Bypasses pickling errors)
@@ -35,7 +35,7 @@ def train_forensic_rtdetr():
             fliplr=0.5,      # Lateral augmentation
             amp=True         # Automatic Mixed Precision for laptop speed
         )
-        print("\nRT-DETR Forensic Shift Complete!")
+        print("\Yolo v8 Forensic Shift Complete!")
         print(f"Judicial Transformer Weights saved in: {results.save_dir}")
         
     except Exception as e:

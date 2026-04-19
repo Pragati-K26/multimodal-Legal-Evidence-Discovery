@@ -4,25 +4,65 @@ A real-time, AI-powered forensic evidence discovery system that combines **YOLOv
 
 ---
 
-## 🏛️ Architecture Overview
+## 🏛️ Architecture Overview (V8.0)
 
+The system utilizes a **Judicial Hybrid Engine** that combines dual-backbone detection with high-level multimodal reasoning.
+
+```mermaid
+graph TD
+    %% Optimized for A4 Multi-Directional Layout
+    subgraph Data_Acquisition [1. Input Handshake]
+        direction LR
+        A["URL / File / Stream"] ---|yt-dlp| B[ThreadedStreamer]
+        B --> C[(Frame Queue)]
+    end
+
+    subgraph Detection_Tiers [2. Dual-Backbone Discovery]
+        direction LR
+        D1["YOLOv11-S Audit"]
+        D2["YOLOv8-M Legacy"]
+    end
+
+    C --> D1
+    C --> D2
+
+    subgraph Consensus_Layer [3. Forensic Fusion]
+        direction TB
+        E[WBF-lite Neural Fusion]
+        F{Critical Filter}
+        E --> F
+    end
+
+    D1 --> E
+    D2 --> E
+
+    subgraph Insight_Loop [4. Multimodal Reasoning]
+        direction LR
+        G[Async Worker] --> H[Gemini API]
+        H --> I[Forensic Analysis]
+    end
+
+    F -->|Critical Hit| G
+
+    subgraph Output_System [5. Judicial Delivery]
+        direction LR
+        J[WebSocket Server] --> K[Discovery Dashboard]
+        F --> J
+        I --> J
+    end
+
+    subgraph Archive_System [6. Judicial Record]
+        L[Async Recorder] --> M[(Session AVI)]
+    end
+
+    E --> L
+
+    style Consensus_Layer fill:#fff4dd,stroke:#d4a017,stroke-width:2px
+    style Insight_Loop fill:#e1f5fe,stroke:#01579b,stroke-width:2px
 ```
-Raw Stream / Image Upload
-         ↓
-  ThreadedStreamer (yt-dlp)
-         ↓
-  Judicial Hybrid Engine (V7.0)
-  ├── YOLOv11-S Audit Model  → Ropes, Trace Evidence
-  └── YOLOv8-M Legacy Model  → Blood, Human Bodies, Weapons
-         ↓
-  Neural Fusion (Category-Aware NMS)
-         ↓
-  Async Gemini AI Insight Worker
-         ↓
-  FastAPI WebSocket Server (Port 8989)
-         ↓
-  Real-Time Evidence Dashboard (Frontend)
-```
+
+> [!TIP]
+> For a deep-dive into the Neural Backbones and high-fidelity folder analysis, refer to the [Architectural Analysis Report](file:///C:/Users/nilam/.gemini/antigravity/brain/9449a532-01c5-4993-b494-e90502b70662/architectural_analysis.md).
 
 ---
 

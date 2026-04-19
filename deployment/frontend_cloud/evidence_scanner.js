@@ -66,7 +66,8 @@ async function startDiscovery() {
     setupMessage.style.display = 'none';
     videoFeed.style.display = 'block';
 
-    const wsUrl = `ws://${window.location.hostname}:8989/ws/discover?video_path=${encodeURIComponent(videoUrl)}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/discover?video_path=${encodeURIComponent(videoUrl)}`;
     
     if (ws) ws.close();
     ws = new WebSocket(wsUrl);

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+ultralytics
+google-genai
+opencv-python-headless
+pillow
+numpy
+python-multipart
+yt-dlp

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discovery Scanner v6.2 | OMNI-AWARENESS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #f0f2f5;
+            --bg-panel: #ffffff;
+            --accent-red: #cc2b2b;
+            --accent-green: #27ae60;
+            --text-primary: #1a1a25;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --shadow: rgba(0, 0, 0, 0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header Area */
+        header {
+            padding: 1rem 2rem;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo-area h1 {
+            font-size: 1.25rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .logo-area span {
+            color: var(--accent-red);
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+            padding: 2px 8px;
+            border: 1px solid var(--accent-red);
+            border-radius: 4px;
+        }
+
+        /* Input Controls */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            background: #ffffff;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            width: 50%;
+            box-shadow: 0 2px 10px var(--shadow);
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            width: 100%;
+            outline: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        button {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px var(--glow-red);
+        }
+
+        /* Main Workspace: 3-Column Grid */
+        main {
+            display: grid;
+            grid-template-columns: 350px 1fr 400px;
+            flex: 1;
+            gap: 1px;
+            background: var(--border);
+            overflow: hidden;
+        }
+
+        /* Column 1: Historical Discovery Feed */
+        .history-panel {
+            background: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        /* Column 2: Live Video Feed */
+        .video-container {
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 1rem;
+            min-width: 0; /* Prevents overflow in flex/grid */
+        }
+
+        /* Column 3: Judicial Briefing Panel */
+        .briefing-panel {
+            background: var(--bg-panel);
+            display: grid;
+            grid-template-rows: 1fr;
+            overflow: hidden;
+            border-left: 1px solid var(--border);
+        }
+
+        #video-feed {
+            max-width: 100%;
+            max-height: 70vh;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            background: rgba(255,255,255,0.9);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-weight: 600;
+            box-shadow: 0 4px 12px var(--shadow);
+            z-index: 5;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #444;
+        }
+
+        .indicator.active {
+            background: var(--accent-red);
+            box-shadow: 0 0 12px var(--accent-red);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        .panel-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+            background: #fafbfc;
+        }
+
+        .panel-header h2 {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+
+        /* Evidence Feed Styling (Left Column) */
+        #evidence-feed {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .evidence-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        .evidence-card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px var(--shadow); border-color: var(--accent-red); }
+
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .evidence-card img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+
+        .evidence-card:hover img { opacity: 1; }
+
+        .evidence-info { padding: 0.75rem; }
+
+        .evidence-type {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--accent-red);
+            margin-bottom: 0.25rem;
+        }
+
+        .evidence-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        /* Judicial Log Styling (Right Column) */
+        .judicial-log-section {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .log-terminal {
+            flex: 1;
+            background: #fdfdfd;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: #334155;
+            overflow-y: auto;
+            line-height: 1.6;
+            box-shadow: inset 0 2px 4px var(--shadow);
+        }
+
+        .log-item {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .log-time { color: #94a3b8; margin-right: 10px; }
+        .log-tag { color: var(--accent-red); font-weight: 600; }
+        .log-text { color: var(--text-primary); display: block; margin-top: 4px; border-left: 2px solid #e2e8f0; padding-left: 10px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-area">
+            <h1>Forensic<span>Discovery</span></h1>
+        </div>
+        <div class="controls">
+            <button id="upload-trigger" onclick="document.getElementById('file-input').click()" style="background: none; border-right: 1px solid var(--border); border-radius: 0; padding: 0 1rem; color: var(--text-secondary);">📎</button>
+            <input type="file" id="file-input" style="display: none;" onchange="handleFileUpload(this)">
+            <input type="text" id="video-input" placeholder="Paste YouTube URL or Local File Path...">
+            <button id="start-btn" onclick="startDiscovery()">START AUDIT</button>
+        </div>
+        <div class="user-id" style="font-family: 'JetBrains Mono'; font-size: 0.8rem; color: var(--text-secondary);">
+            DISCOVERY_NODE_01
+        </div>
+    </header>
+
+    <main>
+        <!-- Column 1: Historical Evidence List -->
+        <div class="history-panel">
+            <div class="panel-header">
+                <h2>Discovery History</h2>
+            </div>
+            <div id="evidence-feed">
+                <!-- Historical Entries -->
+            </div>
+        </div>
+
+        <!-- Column 2: Live Forensic Stream -->
+        <div class="video-container">
+            <div class="status-badge">
+                <div class="indicator" id="live-indicator"></div>
+                <span id="status-text">OFFLINE</span>
+            </div>
+            <img id="video-feed" src="" alt="Discovery Stream" style="display: none;">
+            <div id="setup-message" style="text-align: center; color: var(--text-secondary);">
+                <p style="font-size: 2rem; margin-bottom: 1rem;">⚖️</p>
+                <p>Initialize scan to begin sequential discovery.</p>
+            </div>
+        </div>
+
+        <!-- Column 3: Judicial Briefing -->
+        <div class="briefing-panel">
+            <div class="judicial-log-section">
+                <div class="panel-header" style="border: none; padding: 0 0 0.5rem 0; background: none;">
+                    <h2>⚖️ Judicial Reasoning</h2>
+                </div>
+                <div id="judicial-log-terminal" class="log-terminal">
+                    <div class="log-item">Waiting for live handshake...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="static/evidence_scanner.js"></script>
+</body>
+</html>

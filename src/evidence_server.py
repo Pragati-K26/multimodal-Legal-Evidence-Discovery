@@ -14,6 +14,9 @@ from video_streamer import ThreadedStreamer
 import uvicorn
 import json
 import time
+import yt_dlp
+import queue
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 import io
@@ -30,14 +33,31 @@ LEGACY_WEIGHTS = r"D:\deep learning\Multimodal-Legal-Discovery\Legal_Evidence_Di
 
 GEMINI_MODEL = "gemini-3.1-pro-preview"
 
-# 2. Performance Tuning (Judicial Recall Mode - TOTAL RECALL 0.01)
+# 2. Forensic Profiles (V7.4 - Dual Mode)
 CRITICAL_CLASSES = {'Blood', 'Handgun', 'Shotgun', 'Knife', 'Hammer', 'Rope', 'Victim', 'Human-body', 'Finger-print', 'Shoe-print'}
-# Global 0.01 sensitivity for every judicial class
-CLASS_THRESHOLDS = {k: 0.01 for k in CRITICAL_CLASSES}
-CLASS_THRESHOLDS['Blood'] = 0.005      # EXTREME BLOOD RECALL
-CLASS_THRESHOLDS['Human-body'] = 0.005 # EXTREME BODY RECALL (Per USER request)
-CLASS_THRESHOLDS['Victim'] = 0.005     # EXTREME VICTIM RECALL
-DEFAULT_THRESH = 0.01
+
+# PROFILE A: IMAGE AUDIT (Hyper-Sensitive)
+IMAGE_THRESHOLDS = {k: 0.01 for k in CRITICAL_CLASSES}
+IMAGE_THRESHOLDS['Blood'] = 0.005      # Extreme Recall
+IMAGE_THRESHOLDS['Human-body'] = 0.003 # V7.2 Partial Body
+IMAGE_THRESHOLDS['Victim'] = 0.003     # V7.2 Face/Upper Torso
+IMAGE_THRESHOLDS['Handgun'] = 0.03     # Per User Noise Filter
+IMAGE_DEFAULT_THRESH = 0.01
+
+# PROFILE B: VIDEO MONITOR (High-Stability)
+# Designed to eliminate "random detections" during live movement
+VIDEO_THRESHOLDS = {k: 0.25 for k in CRITICAL_CLASSES}
+VIDEO_THRESHOLDS['Blood'] = 0.01       # RECAL OVERRIDE (Per User Request)
+VIDEO_THRESHOLDS['Finger-print'] = 0.001 
+VIDEO_THRESHOLDS['Shoe-print'] = 0.001
+VIDEO_THRESHOLDS['Handgun'] = 0.5     # Eliminate transient weapon ghosts
+VIDEO_THRESHOLDS['Shotgun'] = 0.5     
+VIDEO_THRESHOLDS['Knife'] = 0.5      
+VIDEO_THRESHOLDS['Human-body'] = 0.2 
+
+VIDEO_THRESHOLDS['Hammer'] = 0.5 # Stabilize silhouette jitter
+VIDEO_DEFAULT_THRESH = 0.25
+
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -70,6 +90,28 @@ def recording_worker(frame_queue, output_path, fps, width, height):
     recorder.release()
     print(f"JUDICIAL TAPE SEALED: {output_path}")
 
+def resolve_judicial_stream(url):
+    """
+    Acts as a Judicial Stream Handshake. If the input is a web link (YouTube, etc.),
+    it resolves it into a direct MP4/stream URL for cv2 integration.
+    """
+    if not url.startswith(("http://", "https://")):
+        return url
+    
+    print(f"Resolving Judicial Stream: {url}")
+    ydl_opts = {
+        'format': 'best',
+        'quiet': True,
+        'no_warnings': True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return info['url']
+    except Exception as e:
+        print(f"Stream Resolution Failure: {e}")
+        return url
+
 @app.get("/")
 def get_dashboard():
     with open(os.path.join(FRONTEND_DIR, "evidence_scanner.html"), "r", encoding="utf-8") as f:
@@ -96,37 +138,79 @@ def calculate_iou(box1, box2):
     iou = interArea / float(boxAArea + boxBArea - interArea + 1e-6)
     return iou
 
-def fuse_detections(raw_detections, iou_threshold=0.45):
-    """Class-sensitive NMS: Merges boxes of the SAME type that are very near each other."""
+def fuse_detections(raw_detections, iou_threshold=0.5):
+    """V7.6 Judicial Consensus: Weighted Box Fusion (WBF-lite). 
+    Averages overlapping boxes based on confidence weight AND model priority."""
     if not raw_detections: return []
     
-    # Group by label to ensure we only merge the "same evidence" types
-    fused = []
+    # Model Weights (V7.9): Balanced Forensic Consensus (50/50)
+    MODEL_WEIGHTS = {"AUDIT": 1.0, "LEGACY": 1.0}
+    
+    final_fused = []
     labels = set(d['label'] for d in raw_detections)
     
     for label in labels:
         label_dets = [d for d in raw_detections if d['label'] == label]
-        # Sort by confidence
-        sorted_dets = sorted(label_dets, key=lambda x: x['conf'], reverse=True)
         
-        while sorted_dets:
-            best = sorted_dets.pop(0)
-            fused.append(best)
+        while label_dets:
+            primary = label_dets.pop(0)
+            cluster = [primary]
             keep = []
-            for det in sorted_dets:
-                if calculate_iou(best['box'], det['box']) < iou_threshold:
-                    keep.append(det)
-            sorted_dets = keep
             
-    return fused
+            for other in label_dets:
+                if calculate_iou(primary['box'], other['box']) > iou_threshold:
+                    cluster.append(other)
+                else:
+                    keep.append(other)
+            label_dets = keep
+            
+            # Weighted Averaging: (Coord * Conf * ModelWeight) / TotalWeight
+            sum_weighted_conf = sum(d['conf'] * MODEL_WEIGHTS.get(d['model'], 1.0) for d in cluster)
+            avg_box = [0, 0, 0, 0]
+            for d in cluster:
+                weight = d['conf'] * MODEL_WEIGHTS.get(d['model'], 1.0)
+                for i in range(4):
+                    avg_box[i] += d['box'][i] * weight
+            
+            avg_box = [int(v / sum_weighted_conf) for v in avg_box]
+            
+            final_fused.append({
+                "label": label,
+                "conf": max(d['conf'] for d in cluster),
+                "box": avg_box
+            })
+            
+    return final_fused
 
 # 7. Judicial Discovery Logic (Hybrid Recall)
-def process_yolo_only(frame, timestamp):
+# 5. Background Recording Worker (Zero Frame Loss)
+def recording_worker(frame_queue, output_path, fps, width, height):
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    recorder = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    print(f"JUDICIAL TAPE START: {output_path}")
+    
+    while True:
+        try:
+            item = frame_queue.get(timeout=2)
+            if isinstance(item, str) and item == "STOP": break
+            recorder.write(item)
+        except queue.Empty:
+            continue
+    
+    recorder.release()
+    print(f"JUDICIAL TAPE SEALED: {output_path}")
+
+def process_yolo_only(frame, timestamp, is_video=True):
     annotated = frame.copy()
-    # --- STAGE 7.0: JUDICIAL HYBRID SWEEP ---
-    # Scan with both Audit and Legacy weights for 100% coverage
-    res_audit = model_audit(frame, conf=0.01, iou=0.25, imgsz=512, verbose=False)[0]
-    res_legacy = model_legacy(frame, conf=0.01, iou=0.25, imgsz=512, verbose=False)[0]
+    
+    # Select Forensic Profile
+    thresholds = VIDEO_THRESHOLDS if is_video else IMAGE_THRESHOLDS
+    def_thresh = VIDEO_DEFAULT_THRESH if is_video else IMAGE_DEFAULT_THRESH
+    
+    # --- STAGE 7.2: HYPER-RESOLUTION HYBRID SWEEP ---
+    # We upscale to 800px to capture thin ropes and partial bodies
+    res_audit = model_audit(frame, conf=0.01, iou=0.25, imgsz=800, verbose=False)[0]
+    res_legacy = model_legacy(frame, conf=0.01, iou=0.25, imgsz=800, verbose=False)[0]
     
     raw_hits = []
     
@@ -134,19 +218,19 @@ def process_yolo_only(frame, timestamp):
     for box in res_audit.boxes:
         conf, cls_id = float(box.conf[0]), int(box.cls[0])
         label = res_audit.names[cls_id]
-        if conf > CLASS_THRESHOLDS.get(label, DEFAULT_THRESH):
+        if conf > thresholds.get(label, def_thresh):
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             label = "HUMAN BODY" if label in ["Human-body", "Victim"] else label
-            raw_hits.append({"label": label, "conf": conf, "box": [x1, y1, x2, y2]})
+            raw_hits.append({"label": label, "conf": conf, "box": [x1, y1, x2, y2], "model": "AUDIT"})
 
     # Process Legacy Hits (v5)
     for box in res_legacy.boxes:
         conf, cls_id = float(box.conf[0]), int(box.cls[0])
         label = res_legacy.names[cls_id]
-        if conf > CLASS_THRESHOLDS.get(label, DEFAULT_THRESH):
+        if conf > thresholds.get(label, def_thresh):
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             label = "HUMAN BODY" if label in ["Human-body", "Victim"] else label
-            raw_hits.append({"label": label, "conf": conf, "box": [x1, y1, x2, y2]})
+            raw_hits.append({"label": label, "conf": conf, "box": [x1, y1, x2, y2], "model": "LEGACY"})
 
     # --- APPLY NEURAL FUSION ---
     # Merges any overlapping hits from the two different models
@@ -253,6 +337,16 @@ async def websocket_discovery(websocket: WebSocket):
 
     # --- JUDICIAL STATE INITIALIZATION ---
     print(f"COMMENCING TAPE-LOCK DISCOVERY: {video_path}")
+    
+    # Judicial Stream Handshake (V7.9)
+    video_path = resolve_judicial_stream(video_path)
+    
+    # V7.4: Automatic Source Detection
+    img_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    _, ext = os.path.splitext(video_path.lower())
+    is_video = ext not in img_exts
+    print(f"SOURCE TYPE: {'VIDEO SCAN' if is_video else 'IMAGE AUDIT'}")
+    
     streamer = ThreadedStreamer(video_path)
     frame_count = 0
     last_brief_time = 0
@@ -264,8 +358,14 @@ async def websocket_discovery(websocket: WebSocket):
     session_id = f"discovery_{int(time.time())}.avi"
     video_out_path = os.path.join(processed_dir, session_id)
 
-    # --- START BACKGROUND REASONING WORKER ---
+    # Initialize frame queue for zero-loss recording
+    frame_queue = queue.Queue(maxsize=128)
+    h_init, w_init = 640, 480 # Fallback
+    
+    # --- START BACKGROUND WORKERS ---
     worker_task = asyncio.create_task(insight_worker(websocket, insight_queue))
+    
+    recording_thread = None
     
     try:
         while True:
@@ -287,19 +387,21 @@ async def websocket_discovery(websocket: WebSocket):
             
             # 1. ANALYZE FRAME (YOLO DETECTIONS) - INSTANT
             try:
-                detections, annotated = process_yolo_only(frame, timestamp)
+                detections, annotated = process_yolo_only(frame, timestamp, is_video=is_video)
             except Exception as e:
                 print(f"YOLO Discovery Failure: {e}")
                 continue
             
-            # 2. SAVE TO FORENSIC RECORD - INSTANT
-            if recorder is None:
+            # 2. ASYNC RECORDING (ZERO LOSS)
+            if recording_thread is None:
                 h, w = frame.shape[:2]
-                fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                recorder = cv2.VideoWriter(video_out_path, fourcc, 20.0, (w, h))
-                print(f"JUDICIAL SEAL START: {video_out_path}")
+                recording_thread = threading.Thread(
+                    target=recording_worker, 
+                    args=(frame_queue, video_out_path, 20.0, w, h)
+                )
+                recording_thread.start()
             
-            recorder.write(annotated)
+            frame_queue.put(annotated)
             
             # 3. ASYNCHRONOUS MULTIMODAL ANALYTICS (NON-BLOCKING)
             has_critical = any(d['label'] in CRITICAL_CLASSES for d in detections)
@@ -337,9 +439,9 @@ async def websocket_discovery(websocket: WebSocket):
         print(f"CRITICAL DISCOVERY ERROR: {e}")
     finally:
         worker_task.cancel()
-        if recorder:
-            recorder.release()
-            print(f"JUDICIAL TAPE SEALED: {video_out_path}")
+        if recording_thread:
+            frame_queue.put("STOP")
+            recording_thread.join()
         streamer.stop()
 
 if __name__ == "__main__":
